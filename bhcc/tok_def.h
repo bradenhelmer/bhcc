@@ -14,7 +14,7 @@
 #endif
 
 #ifndef KEYWORD
-#define KEYWORD(X) TOKEN(keyword_##X)
+#define KEYWORD(X) TOKEN(KW_##X)
 #endif
 
 TOKEN(ID)
@@ -106,6 +106,8 @@ KEYWORD(unsigned)
 KEYWORD(void)
 KEYWORD(volatile)
 KEYWORD(while)
+#define KW_COUNT 31
+#define MAX_KW_LEN 8
 
 #undef TOKEN
 #undef OPERATOR
