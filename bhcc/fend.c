@@ -162,9 +162,57 @@ static char *lex_identifer(token *tok, char *curr_ptr) {
 static char *lex_hex_literal(token *tok, char *curr_ptr) {}
 static char *lex_octal_literal(token *tok, char *curr_ptr) {}
 
-// Lex a floating point literal e.g
+inline static int is_fp_lit_suffix_char(char c) {
+  return c == 'f' || c == 'F' || c == 'l' || c == 'L';
+}
+// Lex a floating point literal with a possible exponent/suffix e.g
+// 1.0 -> double
+// 1.0f -> float
+// 1.0e+6 -> double
+// .0e-6 -> double
+// 1.0l -> long double
+static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {
+  // If an exponent hasn't been found yet, we are under the assumption that we
+  // are lexing from the decimal point '.'
+  float test = 1.;
+  curr_ptr++;
+  if (!e_found) {
+    do {
+      if ((*curr_ptr == 'e' || *curr_ptr == 'E') && !e_found) {
+        puts("found e");
+        e_found = 1;
+        curr_ptr++;
+        if (*curr_ptr == '+' || *curr_ptr == '-')
+          curr_ptr++;
+      }
+      curr_ptr++;
+    } while (isdigit(*curr_ptr) || *curr_ptr == 'e' || *curr_ptr == 'E');
+  } else {
+    if (*curr_ptr == '+' || *curr_ptr == '-')
+      curr_ptr++;
+    while (isdigit(*curr_ptr))
+      curr_ptr++;
+  }
 
-static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {}
+  if (is_fp_lit_suffix_char(*curr_ptr)) {
+    switch (*curr_ptr) {
+    case 'l':
+    case 'L':
+      tok->fp_spec = LD;
+      break;
+    case 'f':
+    case 'F':
+      tok->fp_spec = F;
+      break;
+    }
+    tok->end = curr_ptr;
+    return ++curr_ptr;
+  } else {
+    tok->fp_spec = D;
+    tok->end = curr_ptr - 1;
+    return curr_ptr;
+  }
+}
 
 inline static int is_int_lit_suffix_char(char c) {
   return c == 'u' || c == 'l' || c == 'U' || c == 'L';
@@ -179,7 +227,7 @@ inline static int is_int_lit_suffix_char(char c) {
 static char *lex_int_literal(token *tok, char *curr_ptr) {
   do {
     curr_ptr++;
-    if (*curr_ptr == 'e')
+    if (*curr_ptr == 'e' || *curr_ptr == 'E')
       return lex_fp_literal(tok, curr_ptr, 1);
     if (*curr_ptr == '.')
       return lex_fp_literal(tok, curr_ptr, 0);
@@ -272,6 +320,8 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
     default:
       bhcc_errorln_simple("Possible unsupported integer literal suffix!");
     }
+  } else {
+    tok->i_spec = I;
   }
   return curr_ptr;
 }
@@ -568,6 +618,9 @@ static char *lex_next_token(token *tok, char *curr_ptr) {
       // clang-format on
       tok->kind = OCT_LIT;
       return lex_octal_literal(tok, curr_ptr);
+    case '.':
+      tok->kind = FP_LIT;
+      return lex_fp_literal(tok, curr_ptr, 0);
     // case where its just 0.
     default:
       tok->kind = INT_LIT;

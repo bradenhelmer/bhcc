@@ -19,8 +19,12 @@ const char *keywords[] = {
 #include "tok_def.h"
 };
 
-typedef enum { U, L, UL, LL, ULL } int_lit_spec;
-typedef enum { F, D, LD, } fp_lit_spec;
+typedef enum { I, U, L, UL, LL, ULL } int_lit_spec;
+typedef enum {
+  F,
+  D,
+  LD,
+} fp_lit_spec;
 
 typedef struct {
   char *start;
