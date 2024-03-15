@@ -199,11 +199,11 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
       switch (*suffix_start) {
       case 'u':
       case 'U':
-        tok->spec = U;
+        tok->i_spec = U;
         break;
       case 'l':
       case 'L':
-        tok->spec = L;
+        tok->i_spec = L;
         break;
       }
       break;
@@ -214,7 +214,7 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
         switch (*(suffix_start + 1)) {
         case 'l':
         case 'L':
-          tok->spec = UL;
+          tok->i_spec = UL;
           break;
         default:
           bhcc_errorln_simple("Unsupported integer literal suffix!");
@@ -222,13 +222,13 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
         break;
       case 'l':
         if (*(suffix_start + 1) == 'l') {
-          tok->spec = LL;
+          tok->i_spec = LL;
           break;
         }
         bhcc_errorln_simple("Unsupported integer literal suffix!");
       case 'L':
         if (*(suffix_start + 1) == 'L') {
-          tok->spec = LL;
+          tok->i_spec = LL;
           break;
         }
         bhcc_errorln_simple("Unsupported integer literal suffix!");
@@ -247,14 +247,14 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
       case 'U':
         if ((*(suffix_start + 1) == 'L' && *(suffix_start + 2) == 'L') ||
             (*(suffix_start + 1) == 'l' && *(suffix_start + 2) == 'l')) {
-          tok->spec = ULL;
+          tok->i_spec = ULL;
           break;
         }
         bhcc_errorln_simple("Possible unsupported integer literal suffix!");
       case 'l':
         if (*(suffix_start + 1) == 'l') {
           if (*(suffix_start + 2) == 'U' || *(suffix_start + 2) == 'u') {
-            tok->spec = ULL;
+            tok->i_spec = ULL;
             break;
           }
         }
@@ -262,7 +262,7 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
       case 'L':
         if (*(suffix_start + 1) == 'L') {
           if (*(suffix_start + 2) == 'U' || *(suffix_start + 2) == 'u') {
-            tok->spec = ULL;
+            tok->i_spec = ULL;
             break;
           }
         }
