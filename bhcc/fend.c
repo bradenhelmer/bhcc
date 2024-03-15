@@ -159,12 +159,6 @@ static char *lex_identifer(token *tok, char *curr_ptr) {
   return curr_ptr;
 }
 
-static char *lex_hex_literal(token *tok, char *curr_ptr) {}
-static char *lex_octal_literal(token *tok, char *curr_ptr) {}
-
-inline static int is_fp_lit_suffix_char(char c) {
-  return c == 'f' || c == 'F' || c == 'l' || c == 'L';
-}
 // Lex a floating point literal with a possible exponent/suffix e.g
 // 1.0 -> double
 // 1.0f -> float
@@ -179,7 +173,6 @@ static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {
   if (!e_found) {
     do {
       if ((*curr_ptr == 'e' || *curr_ptr == 'E') && !e_found) {
-        puts("found e");
         e_found = 1;
         curr_ptr++;
         if (*curr_ptr == '+' || *curr_ptr == '-')
@@ -194,24 +187,22 @@ static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {
       curr_ptr++;
   }
 
-  if (is_fp_lit_suffix_char(*curr_ptr)) {
-    switch (*curr_ptr) {
-    case 'l':
-    case 'L':
-      tok->fp_spec = LD;
-      break;
-    case 'f':
-    case 'F':
-      tok->fp_spec = F;
-      break;
-    }
-    tok->end = curr_ptr;
-    return ++curr_ptr;
-  } else {
+  switch (*curr_ptr) {
+  case 'l':
+  case 'L':
+    tok->fp_spec = LD;
+    break;
+  case 'f':
+  case 'F':
+    tok->fp_spec = F;
+    break;
+  default:
     tok->fp_spec = D;
     tok->end = curr_ptr - 1;
     return curr_ptr;
   }
+  tok->end = curr_ptr;
+  return ++curr_ptr;
 }
 
 inline static int is_int_lit_suffix_char(char c) {
@@ -325,6 +316,9 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
   }
   return curr_ptr;
 }
+
+static char *lex_hex_literal(token *tok, char *curr_ptr) {}
+static char *lex_octal_literal(token *tok, char *curr_ptr) {}
 
 // Lex a string literal e.g "Deez nuts"
 static char *lex_string_literal(token *tok, char *curr_ptr) {}
