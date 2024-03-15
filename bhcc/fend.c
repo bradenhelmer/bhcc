@@ -159,24 +159,130 @@ static char *lex_identifer(token *tok, char *curr_ptr) {
   return curr_ptr;
 }
 
-static char *lex_possible_num_type_suffix(token *tok, char *curr_ptr) {}
-static char *lex_binary_literal(token *tok, char *curr_ptr) {}
 static char *lex_hex_literal(token *tok, char *curr_ptr) {}
 static char *lex_octal_literal(token *tok, char *curr_ptr) {}
-static char *lex_numeric_literal(token *tok, char *curr_ptr) {
-  int decimal_encountered = 0;
+
+// Lex a floating point literal e.g
+
+static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {}
+
+inline static int is_int_lit_suffix_char(char c) {
+  return c == 'u' || c == 'l' || c == 'U' || c == 'L';
+}
+// Lex an integer literal with a possible suffix e.g
+// 	100 -> int
+// 	100u, 100U -> unsigned int
+// 	100l, 100L -> long int
+// 	100ul, 100lu -> unsigned long int
+// 	100ll -> long long int
+// 	100ull -> unsigned long long int
+static char *lex_int_literal(token *tok, char *curr_ptr) {
   do {
-    // Check decimal first as this may be a literal with no leading digits.
-    decimal_encountered += (*curr_ptr == '.') * !decimal_encountered;
     curr_ptr++;
-  } while (isdigit(*curr_ptr) || (*curr_ptr == '.' && !decimal_encountered));
-  tok->end = (curr_ptr - 1);
-  return lex_possible_num_type_suffix(tok, curr_ptr);
+    if (*curr_ptr == 'e')
+      return lex_fp_literal(tok, curr_ptr, 1);
+    if (*curr_ptr == '.')
+      return lex_fp_literal(tok, curr_ptr, 0);
+  } while (isdigit(*curr_ptr));
+  tok->end = curr_ptr - 1;
+
+  // Check for possible suffix
+  if (is_int_lit_suffix_char(*curr_ptr)) {
+    char *suffix_start = curr_ptr;
+    do {
+      curr_ptr++;
+    } while (is_int_lit_suffix_char(*curr_ptr));
+    tok->end = curr_ptr - 1;
+    const size_t suffix_len = curr_ptr - suffix_start;
+    switch (suffix_len) {
+    case 1:
+      switch (*suffix_start) {
+      case 'u':
+      case 'U':
+        tok->spec = U;
+        break;
+      case 'l':
+      case 'L':
+        tok->spec = L;
+        break;
+      }
+      break;
+    case 2:
+      switch (*suffix_start) {
+      case 'u':
+      case 'U':
+        switch (*(suffix_start + 1)) {
+        case 'l':
+        case 'L':
+          tok->spec = UL;
+          break;
+        default:
+          bhcc_errorln_simple("Unsupported integer literal suffix!");
+        }
+        break;
+      case 'l':
+        if (*(suffix_start + 1) == 'l') {
+          tok->spec = LL;
+          break;
+        }
+        bhcc_errorln_simple("Unsupported integer literal suffix!");
+      case 'L':
+        if (*(suffix_start + 1) == 'L') {
+          tok->spec = LL;
+          break;
+        }
+        bhcc_errorln_simple("Unsupported integer literal suffix!");
+      default:
+        bhcc_errorln_simple("Unsupported integer literal suffix!");
+      }
+      break;
+    case 3:
+      // Can't have anything with u in the middle like LuL
+      // For the 3 letter case, easier to just do nested conditionals within top
+      // level switch.
+      if (*(suffix_start + 1) == 'u' || *(suffix_start + 1) == 'U')
+        bhcc_errorln_simple("Unsupported integer literal suffix!");
+      switch (*suffix_start) {
+      case 'u':
+      case 'U':
+        if ((*(suffix_start + 1) == 'L' && *(suffix_start + 2) == 'L') ||
+            (*(suffix_start + 1) == 'l' && *(suffix_start + 2) == 'l')) {
+          tok->spec = ULL;
+          break;
+        }
+        bhcc_errorln_simple("Possible unsupported integer literal suffix!");
+      case 'l':
+        if (*(suffix_start + 1) == 'l') {
+          if (*(suffix_start + 2) == 'U' || *(suffix_start + 2) == 'u') {
+            tok->spec = ULL;
+            break;
+          }
+        }
+        bhcc_errorln_simple("Possible unsupported integer literal suffix!");
+      case 'L':
+        if (*(suffix_start + 1) == 'L') {
+          if (*(suffix_start + 2) == 'U' || *(suffix_start + 2) == 'u') {
+            tok->spec = ULL;
+            break;
+          }
+        }
+        bhcc_errorln_simple("Possible unsupported integer literal suffix!");
+      }
+      break;
+    default:
+      bhcc_errorln_simple("Possible unsupported integer literal suffix!");
+    }
+  }
+  return curr_ptr;
 }
 
+// Lex a string literal e.g "Deez nuts"
 static char *lex_string_literal(token *tok, char *curr_ptr) {}
+
+// Lex a character literal e.g 'x'
 static char *lex_char_literal(token *tok, char *curr_ptr) {}
 
+// Core lexical routine. Scans and lexes a token, deducing its type.
 static char *lex_next_token(token *tok, char *curr_ptr) {
 
   // Remove possible H/V whitespace
@@ -396,7 +502,7 @@ static char *lex_next_token(token *tok, char *curr_ptr) {
     }
     // Might be parsing a floating point without leading digits.
     else if (isdigit(*(curr_ptr + 1))) {
-      return lex_numeric_literal(tok, curr_ptr);
+      return lex_fp_literal(tok, curr_ptr, 0);
     }
     tok->kind = DOT;
     return ++curr_ptr;
@@ -456,9 +562,6 @@ static char *lex_next_token(token *tok, char *curr_ptr) {
     case 'X':
       tok->kind = HEX_LIT;
       return lex_hex_literal(tok, ++curr_ptr);
-    case 'b':
-      tok->kind = BIN_LIT;
-      return lex_binary_literal(tok, ++curr_ptr);
       // clang-format off
 	case '0': case '1': case '2': case '3': case '4':
 	case '5': case '6': case '7': case '8': case '9':
@@ -467,15 +570,15 @@ static char *lex_next_token(token *tok, char *curr_ptr) {
       return lex_octal_literal(tok, curr_ptr);
     // case where its just 0.
     default:
-      tok->kind = NUM_LIT;
+      tok->kind = INT_LIT;
       return curr_ptr;
     }
     // clang-format off
   case '1': case '2': case '3': case '4': case '5':
   case '6': case '7': case '8': case '9':
     // clang-format on
-    tok->kind = NUM_LIT;
-    return lex_numeric_literal(tok, curr_ptr);
+    tok->kind = INT_LIT;
+    return lex_int_literal(tok, curr_ptr);
   }
   return curr_ptr;
 }
@@ -489,7 +592,7 @@ void parse_program(compiler *c) {
   curr_char = &c->file_src[0];
   while (curr_token.kind != BHCC_EOF) {
     curr_char = lex_next_token(&curr_token, curr_char);
-    /* if (curr_token.kind != BHCC_EOF) */
-    /*   print_token(&curr_token); */
+    if (curr_token.kind != BHCC_EOF)
+      print_token(&curr_token);
   }
 }
