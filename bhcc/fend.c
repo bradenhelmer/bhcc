@@ -63,7 +63,7 @@ inline
   return hval;
 }
 
-static void __init_kw_table() {
+static void __init_kw_table(void) {
   int i;
   tok_kind keyword_enums[] = {
 #define KEYWORD(X) KW_##X,
@@ -101,10 +101,20 @@ static kw_table_entry *__kw_hash_lookup(const char *word, size_t len) {
 // Notes:
 // - Lexical routines assume that a token has been lexed once a
 //   matching valid token has been found regardless of semantics.
+//
 // - The end pointer of a token points to the last character in the token
 //   string.
 //   	           e.g for the token /=
 //     the end field would point here ^.
+//
+// - The pointer returned from each lexical routine should be the position
+//   immediately after the last character in a token.
+//   	           e.g for the token !=
+//      the end field would point here ^.
+//
+// - String and character literal tokens are assumed to just contain the
+//   characters present within single or double quotes. The punctuation can be
+//   theoretically disregarded.
 
 // Lex horizontal and veritcal whitespace, return new pointer.
 static char *lex_whitespace(char *curr_ptr) {
@@ -168,7 +178,6 @@ static char *lex_identifer(token *tok, char *curr_ptr) {
 static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {
   // If an exponent hasn't been found yet, we are under the assumption that we
   // are lexing from the decimal point '.'
-  float test = 1.;
   curr_ptr++;
   if (!e_found) {
     do {
@@ -317,14 +326,39 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
   return curr_ptr;
 }
 
+static inline int is_hex_char(char c) {
+  return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') ||
+         (c >= 'a' && c <= 'b');
+}
+
 static char *lex_hex_literal(token *tok, char *curr_ptr) {}
 static char *lex_octal_literal(token *tok, char *curr_ptr) {}
 
 // Lex a string literal e.g "Deez nuts"
-static char *lex_string_literal(token *tok, char *curr_ptr) {}
+static char *lex_string_literal(token *tok, char *curr_ptr) {
+  tok->start = ++curr_ptr;
+  while (*curr_ptr != '"') {
+    curr_ptr++;
+    if (*curr_ptr == '\n' || *curr_ptr == 0)
+      bhcc_errorln_simple("Unterminated string literal!");
+  }
+  tok->end = curr_ptr++ - 1;
+  return curr_ptr;
+}
 
 // Lex a character literal e.g 'x'
-static char *lex_char_literal(token *tok, char *curr_ptr) {}
+static char *lex_char_literal(token *tok, char *curr_ptr) {
+  tok->start = ++curr_ptr;
+  if (*curr_ptr == '\\')
+    curr_ptr++;
+  while (*curr_ptr != '\'') {
+    curr_ptr++;
+    if (*curr_ptr == 0)
+      bhcc_errorln_simple("Unterminated character literal!");
+  }
+  tok->end = curr_ptr++ - 1;
+  return curr_ptr;
+}
 
 // Core lexical routine. Scans and lexes a token, deducing its type.
 static char *lex_next_token(token *tok, char *curr_ptr) {
