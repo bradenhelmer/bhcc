@@ -169,33 +169,7 @@ static char *lex_identifer(token *tok, char *curr_ptr) {
   return curr_ptr;
 }
 
-// Lex a floating point literal with a possible exponent/suffix e.g
-// 1.0 -> double
-// 1.0f -> float
-// 1.0e+6 -> double
-// .0e-6 -> double
-// 1.0l -> long double
-static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {
-  // If an exponent hasn't been found yet, we are under the assumption that we
-  // are lexing from the decimal point '.'
-  curr_ptr++;
-  if (!e_found) {
-    do {
-      if ((*curr_ptr == 'e' || *curr_ptr == 'E') && !e_found) {
-        e_found = 1;
-        curr_ptr++;
-        if (*curr_ptr == '+' || *curr_ptr == '-')
-          curr_ptr++;
-      }
-      curr_ptr++;
-    } while (isdigit(*curr_ptr) || *curr_ptr == 'e' || *curr_ptr == 'E');
-  } else {
-    if (*curr_ptr == '+' || *curr_ptr == '-')
-      curr_ptr++;
-    while (isdigit(*curr_ptr))
-      curr_ptr++;
-  }
-
+static char *lex_fp_suffix(token *tok, char *curr_ptr) {
   switch (*curr_ptr) {
   case 'l':
   case 'L':
@@ -214,27 +188,41 @@ static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {
   return ++curr_ptr;
 }
 
+// Lex a floating point literal with a possible exponent/suffix e.g
+// 1.0 -> double
+// 1.0f -> float
+// 1.0e+6 -> double
+// .0e-6 -> double
+// 1.0l -> long double
+static char *lex_fp_literal(token *tok, char *curr_ptr, int e_found) {
+  // If an exponent hasn't been found yet, we are under the assumption that we
+  // are lexing from the decimal point '.'
+  tok->kind = FP_LIT;
+  curr_ptr++;
+  if (!e_found) {
+    do {
+      if ((*curr_ptr == 'e' || *curr_ptr == 'E') && !e_found) {
+        e_found = 1;
+        curr_ptr++;
+        if (*curr_ptr == '+' || *curr_ptr == '-')
+          curr_ptr++;
+      }
+      curr_ptr++;
+    } while (isdigit(*curr_ptr) || *curr_ptr == 'e' || *curr_ptr == 'E');
+  } else {
+    if (*curr_ptr == '+' || *curr_ptr == '-')
+      curr_ptr++;
+    while (isdigit(*curr_ptr))
+      curr_ptr++;
+  }
+  return lex_fp_suffix(tok, curr_ptr);
+}
+
 inline static int is_int_lit_suffix_char(char c) {
   return c == 'u' || c == 'l' || c == 'U' || c == 'L';
 }
-// Lex an integer literal with a possible suffix e.g
-// 	100 -> int
-// 	100u, 100U -> unsigned int
-// 	100l, 100L -> long int
-// 	100ul, 100lu -> unsigned long int
-// 	100ll -> long long int
-// 	100ull -> unsigned long long int
-static char *lex_int_literal(token *tok, char *curr_ptr) {
-  do {
-    curr_ptr++;
-    if (*curr_ptr == 'e' || *curr_ptr == 'E')
-      return lex_fp_literal(tok, curr_ptr, 1);
-    if (*curr_ptr == '.')
-      return lex_fp_literal(tok, curr_ptr, 0);
-  } while (isdigit(*curr_ptr));
-  tok->end = curr_ptr - 1;
 
-  // Check for possible suffix
+static char *lex_integer_suffix(token *tok, char *curr_ptr) {
   if (is_int_lit_suffix_char(*curr_ptr)) {
     char *suffix_start = curr_ptr;
     do {
@@ -325,14 +313,77 @@ static char *lex_int_literal(token *tok, char *curr_ptr) {
   }
   return curr_ptr;
 }
+// Lex an integer literal with a possible suffix e.g
+// 	100 -> int
+// 	100u, 100U -> unsigned int
+// 	100l, 100L -> long int
+// 	100ul, 100lu -> unsigned long int
+// 	100ll -> long long int
+// 	100ull -> unsigned long long int
+static char *lex_int_literal(token *tok, char *curr_ptr) {
+  do {
+    curr_ptr++;
+    if (*curr_ptr == 'e' || *curr_ptr == 'E')
+      return lex_fp_literal(tok, curr_ptr, 1);
+    if (*curr_ptr == '.')
+      return lex_fp_literal(tok, curr_ptr, 0);
+  } while (isdigit(*curr_ptr));
+  tok->end = curr_ptr - 1;
+
+  return lex_integer_suffix(tok, curr_ptr);
+}
 
 static inline int is_hex_char(char c) {
   return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') ||
          (c >= 'a' && c <= 'b');
 }
 
-static char *lex_hex_literal(token *tok, char *curr_ptr) {}
-static char *lex_octal_literal(token *tok, char *curr_ptr) {}
+static char *lex_hex_fp_literal(token *tok, char *curr_ptr, int p_found) {
+  tok->kind = HEX_FP_LIT;
+  curr_ptr++;
+  if (!p_found) {
+    do {
+      if ((*curr_ptr == 'p' || *curr_ptr == 'P') && !p_found) {
+        p_found = 1;
+        curr_ptr++;
+        if (*curr_ptr == '+' || *curr_ptr == '-')
+          curr_ptr++;
+      }
+      curr_ptr++;
+    } while (is_hex_char(*curr_ptr) || *curr_ptr == 'p' || *curr_ptr == 'P');
+  } else {
+    if (*curr_ptr == '+' || *curr_ptr == '-')
+      curr_ptr++;
+    while (is_hex_char(*curr_ptr))
+      curr_ptr++;
+  }
+  return lex_fp_suffix(tok, curr_ptr);
+}
+
+static char *lex_hex_int_literal(token *tok, char *curr_ptr) {
+  do {
+    curr_ptr++;
+    if (*curr_ptr == 'p' || *curr_ptr == 'P')
+      return lex_hex_fp_literal(tok, curr_ptr, 1);
+    if (*curr_ptr == '.')
+      return lex_hex_fp_literal(tok, curr_ptr, 0);
+  } while (is_hex_char(*curr_ptr));
+  tok->end = curr_ptr - 1;
+
+  return lex_integer_suffix(tok, curr_ptr);
+}
+
+static char *lex_octal_literal(token *tok, char *curr_ptr) {
+  do {
+    curr_ptr++;
+    if (*curr_ptr == 'e' || *curr_ptr == 'E')
+      return lex_fp_literal(tok, curr_ptr, 1);
+    if (*curr_ptr == '.')
+      return lex_fp_literal(tok, curr_ptr, 0);
+  } while (isdigit(*curr_ptr));
+  tok->end = curr_ptr - 1;
+  return curr_ptr;
+}
 
 // Lex a string literal e.g "Deez nuts"
 static char *lex_string_literal(token *tok, char *curr_ptr) {
@@ -638,8 +689,8 @@ static char *lex_next_token(token *tok, char *curr_ptr) {
     switch (*(++curr_ptr)) {
     case 'x':
     case 'X':
-      tok->kind = HEX_LIT;
-      return lex_hex_literal(tok, ++curr_ptr);
+      tok->kind = HEX_INT_LIT;
+      return lex_hex_int_literal(tok, ++curr_ptr);
       // clang-format off
 	case '0': case '1': case '2': case '3': case '4':
 	case '5': case '6': case '7': case '8': case '9':
@@ -674,6 +725,6 @@ void parse_program(compiler *c) {
   while (curr_token.kind != BHCC_EOF) {
     curr_char = lex_next_token(&curr_token, curr_char);
     if (curr_token.kind != BHCC_EOF)
-      print_token(&curr_token);
+      print_token(&curr_token, 1);
   }
 }
