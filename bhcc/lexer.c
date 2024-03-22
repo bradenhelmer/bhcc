@@ -21,9 +21,7 @@ typedef struct {
 #define MAX_WORD_LENGTH 8
 #define MIN_HASH_VALUE 3
 #define MAX_HASH_VALUE 46
-#define KW_TABLE_SIZE MAX_HASH_VALUE + 1
 
-kw_table_entry kw_table[KW_TABLE_SIZE];
 /* maximum key range = 44, duplicates = 0 */
 #ifdef __GNUC__
 __inline
@@ -65,6 +63,9 @@ inline
 }
 // ~~~~~~~~~~~~~~~~~~~~~~~~
 // END GPERF GENERATED CODE
+#define KW_TABLE_SIZE MAX_HASH_VALUE + 1
+
+kw_table_entry kw_table[KW_TABLE_SIZE];
 
 void __init_kw_table(void) {
   int i;
