@@ -1,7 +1,7 @@
 // io.c
 // ~~~~
 // IO routine implementations.
-#include "error.h"
+#include "util/error.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/mman.h>

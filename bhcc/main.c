@@ -18,20 +18,6 @@ int main(int argc, char **argv) {
   if (argc < 2) {
     bhcc_errorln_simple("Usage -> bhcc FILE ARGS\n");
   }
-
-  vec test_vec = VECTOR_CREATE(int, 64);
-  int *p;
-  for (int i = 0; i < 34; ++i) {
-	p = (int *)malloc(sizeof(int));
-	*p = i;
-	VECTOR_INSERT(test_vec, p); 
-  }
-
-  /* VECTOR_DESTROY(test_vec); */
-  for (int i = 0; i < test_vec.size; ++i) {                                          \
-    free(test_vec.data[i]);                                                          \
-  }
-
   // Init compiler with source file.
   compiler bhcc;
   init_compiler(&bhcc, argc, argv);

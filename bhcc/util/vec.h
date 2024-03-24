@@ -1,6 +1,7 @@
 // vec.h
 // ~~~~~
 // Vector interface definitions.
+#include "error.h"
 #include <stdlib.h>
 
 typedef struct {
@@ -9,11 +10,39 @@ typedef struct {
   size_t size;
 } vec;
 
-#define VECTOR_CREATE(type, cap)                                               \
-  { .data = (void **)malloc(sizeof(type*) * cap), .capacity = cap, .size = 0 }
+inline static void vector_init(vec *v, size_t capacity) {
+  v->data = (void **)malloc(sizeof(void *) * capacity);
+  v->capacity = capacity;
+  v->size = 0;
+}
 
-#define VECTOR_INSERT(v, i) v.data[v.size++] = i
-#define VECTOR_DESTROY(v)                                                      \
-  for (int i = 0; i < v.size; ++i) {                                          \
-    free(v.data[i]);                                                          \
+inline static void *vector_at(vec *v, size_t idx) {
+  if (idx >= v->capacity) {
+    bhcc_errorln_simple("Attempted to index vector out of bounds!");
   }
+  return v->data[idx];
+}
+
+inline static void vector_resize(vec *v) {
+  void **new_data = realloc(v->data, sizeof(void *) * v->capacity * 2);
+  if (new_data) {
+    v->capacity *= 2;
+    v->data = new_data;
+  }
+}
+
+inline static void vector_append(vec *v, void *item) {
+  if (v->size == v->capacity) {
+    vector_resize(v);
+  }
+  v->data[(v->size)++] = item;
+}
+
+inline static void vector_destroy(vec *v) {
+  if (v->size > 0) {
+    for (int i = 0; i < v->size; ++i) {
+      free(v->data[i]);
+    }
+  }
+  free(v->data);
+}

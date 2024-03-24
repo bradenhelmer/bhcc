@@ -2,8 +2,8 @@
 // ~~~~~~
 // Compiler front end implementations.
 #include "compiler.h"
-#include "error.h"
 #include "tokens.h"
+#include "util/error.h"
 #include <ctype.h>
 #include <stdint.h>
 #include <string.h>
