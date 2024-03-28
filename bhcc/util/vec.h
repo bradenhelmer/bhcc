@@ -1,6 +1,8 @@
 // vec.h
 // ~~~~~
 // Vector interface definitions.
+#ifndef BHCC_UTIL_VEC_H
+#define BHCC_UTIL_VEC_H
 #include "error.h"
 #include <stdlib.h>
 
@@ -46,3 +48,4 @@ inline static void vector_destroy(vec *v) {
   }
   free(v->data);
 }
+#endif

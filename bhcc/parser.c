@@ -1,22 +1,27 @@
 // parser.c
 // ~~~~~~~~
 // Parsing routines
-#include "tokens.h"
 #include "compiler.h"
+#include "tokens.h"
 
-extern char *lex_next_token(token *, char *);
-extern void __init_kw_table();
+extern void lex(token *);
+extern void init_lexer(char *);
+
+static token curr_token;
+
+static void parse_translation_unit(program *ast);
+
+static void parse_translation_unit(program *ast) {
+  puts("Parsing Translation Unit...");
+}
 
 void parse_program(compiler *c) {
-  __init_kw_table();
 
-  char *curr_char;
-  token curr_token;
   init_token(&curr_token);
-  curr_char = &c->file_src[0];
+  init_lexer(&c->file_src[0]);
+
   while (curr_token.kind != BHCC_EOF) {
-    curr_char = lex_next_token(&curr_token, curr_char);
-    if (curr_token.kind != BHCC_EOF)
-      print_token(&curr_token, 1);
+	lex(&curr_token);
+	print_token(&curr_token, 0);
   }
 }

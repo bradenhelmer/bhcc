@@ -5,8 +5,12 @@
 #include "tokens.h"
 #include "util/error.h"
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+
+static bool lex_init = false;
+static char *curr_ptr_g;
 
 // Entry in kw_table, holds the keyword itself and its token enum value.
 typedef struct {
@@ -84,6 +88,14 @@ void __init_kw_table(void) {
     kw_table_entry entry = {.kw = kw, .enum_val = keyword_enums[i]};
     kw_table[__kw_hash(kw, strlen(kw))] = entry;
   }
+}
+
+void init_lexer(char *ptr) {
+  if (lex_init)
+    return;
+  curr_ptr_g = ptr;
+  lex_init = true;
+  __init_kw_table();
 }
 
 // Slightly modified version from gperf.
@@ -416,265 +428,304 @@ static char *lex_char_literal(token *tok, char *curr_ptr) {
 }
 
 // Core lexical routine. Scans and lexes a token, deducing its type.
-char *lex_next_token(token *tok, char *curr_ptr) {
+void lex(token *tok) {
+
+  if (!lex_init)
+    bhcc_errorln_simple("Lexer not initialized!");
 
   // Remove possible H/V whitespace
-  curr_ptr = lex_whitespace(curr_ptr);
+  curr_ptr_g = lex_whitespace(curr_ptr_g);
 
   // Clear token
-  tok->start = curr_ptr;
-  tok->end = curr_ptr;
+  tok->start = curr_ptr_g;
+  tok->end = curr_ptr_g;
   tok->kind = UNKNOWN;
 
-  switch (*curr_ptr) {
+  switch (*curr_ptr_g) {
 
   // EOF ?
   case 0:
     tok->kind = BHCC_EOF;
     break;
   case '+': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = ADD_ASSIGN;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     case '+':
       tok->kind = INCREMENT;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = ADD;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '-': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = SUB_ASSIGN;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     case '-':
       tok->kind = DECREMENT;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     case '>':
       tok->kind = ARROW;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = SUB;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '*': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = MUL_ASSIGN;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = STAR;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '/': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '/':
       tok->kind = INLINE_COMMENT;
-      return lex_inline_comment(tok, curr_ptr);
+      curr_ptr_g = lex_inline_comment(tok, curr_ptr_g);
+      return;
     case '*':
       tok->kind = BLOCK_COMMENT;
-      return lex_block_comment(tok, curr_ptr);
+      curr_ptr_g = lex_block_comment(tok, curr_ptr_g);
+      return;
     case '=':
-      tok->end = curr_ptr;
+      tok->end = curr_ptr_g;
       tok->kind = DIV_ASSIGN;
-      return ++curr_ptr;
+      ++curr_ptr_g;
+      return;
     default:
-      tok->end = curr_ptr - 1;
+      tok->end = curr_ptr_g - 1;
       tok->kind = DIV;
-      return curr_ptr;
+      return;
     }
   }
   case '%': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = MOD_ASSIGN;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = MODULO;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '=': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = EQ;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = ASSIGN;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '>': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = GEQ;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     case '>': {
-      switch (*(++curr_ptr)) {
+      switch (*(++curr_ptr_g)) {
       case '=':
         tok->kind = SHR_ASSIGN;
-        tok->end = curr_ptr;
-        return ++curr_ptr;
+        tok->end = curr_ptr_g;
+        ++curr_ptr_g;
+        return;
       default:
         tok->kind = SHR;
-        tok->end = curr_ptr - 1;
-        return curr_ptr;
+        tok->end = curr_ptr_g - 1;
+        return;
+        ++curr_ptr_g;
+        return;
       }
     }
     default:
       tok->kind = GT;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '<': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = LEQ;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     case '<': {
-      switch (*(++curr_ptr)) {
+      switch (*(++curr_ptr_g)) {
       case '=':
         tok->kind = SHL_ASSIGN;
-        tok->end = curr_ptr;
-        return ++curr_ptr;
+        tok->end = curr_ptr_g;
+        ++curr_ptr_g;
+        return;
       default:
         tok->kind = SHL;
-        tok->end = curr_ptr - 1;
-        return curr_ptr;
+        tok->end = curr_ptr_g - 1;
+        return;
       }
     }
     default:
       tok->kind = LT;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '!': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = NE;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = LOG_NOT;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '&': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = BIT_ASSIGN_AND;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     case '&':
       tok->kind = LOG_AND;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = BIT_AND_OR_ADDRESS;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '|': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = BIT_ASSIGN_OR;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     case '|':
       tok->kind = LOG_OR;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = BIT_OR;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '^': {
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case '=':
       tok->kind = BIT_ASSIGN_XOR;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     default:
       tok->kind = BIT_XOR;
-      tok->end = (curr_ptr - 1);
-      return curr_ptr;
+      tok->end = (curr_ptr_g - 1);
+      return;
     }
   }
   case '.':
-    if (*(curr_ptr + 1) == '.' && *(curr_ptr + 2) == '.') {
+    if (*(curr_ptr_g + 1) == '.' && *(curr_ptr_g + 2) == '.') {
       tok->kind = VARIADIC;
-      curr_ptr += 2;
-      tok->end = curr_ptr;
-      return ++curr_ptr;
+      curr_ptr_g += 2;
+      tok->end = curr_ptr_g;
+      ++curr_ptr_g;
+      return;
     }
     // Might be parsing a floating point without leading digits.
-    else if (isdigit(*(curr_ptr + 1))) {
-      return lex_fp_literal(tok, curr_ptr, 0);
+    else if (isdigit(*(curr_ptr_g + 1))) {
+      curr_ptr_g = lex_fp_literal(tok, curr_ptr_g, 0);
+      return;
     }
     tok->kind = DOT;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case ',':
     tok->kind = COMMA;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case '?':
     tok->kind = TERNARY_COND;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case ':':
     tok->kind = TERNARY_ELSE;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case '{':
     tok->kind = OPEN_BRACE;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case '}':
     tok->kind = CLOSE_BRACE;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case '[':
     tok->kind = OPEN_BRACKET;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case ']':
     tok->kind = CLOSE_BRACKET;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case '(':
     tok->kind = OPEN_PAREN;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case ')':
     tok->kind = CLOSE_PAREN;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case ';':
     tok->kind = SEMI_COLON;
-    return ++curr_ptr;
+    ++curr_ptr_g;
+    return;
   case '\"':
     tok->kind = STR_LIT;
-    return lex_string_literal(tok, curr_ptr);
+    curr_ptr_g = lex_string_literal(tok, curr_ptr_g);
   case '\'':
     tok->kind = CHAR_LIT;
-    return lex_char_literal(tok, curr_ptr);
+    curr_ptr_g = lex_char_literal(tok, curr_ptr_g);
     // clang-format off
   case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G':
   case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N':
@@ -687,34 +738,38 @@ char *lex_next_token(token *tok, char *curr_ptr) {
   case '_':
     // clang-format on
     tok->kind = ID;
-    return lex_identifer(tok, curr_ptr);
+    curr_ptr_g = lex_identifer(tok, curr_ptr_g);
+    return;
     // Check for hexadecimal and octal literals.
   case '0':
-    switch (*(++curr_ptr)) {
+    switch (*(++curr_ptr_g)) {
     case 'x':
     case 'X':
       tok->kind = HEX_INT_LIT;
-      return lex_hex_int_literal(tok, ++curr_ptr);
+      curr_ptr_g = lex_hex_int_literal(tok, ++curr_ptr_g);
+      return;
       // clang-format off
 	case '0': case '1': case '2': case '3': case '4':
 	case '5': case '6': case '7': case '8': case '9':
       // clang-format on
       tok->kind = OCT_LIT;
-      return lex_octal_literal(tok, curr_ptr);
+      curr_ptr_g = lex_octal_literal(tok, curr_ptr_g);
+      return;
     case '.':
       tok->kind = FP_LIT;
-      return lex_fp_literal(tok, curr_ptr, 0);
+      curr_ptr_g = lex_fp_literal(tok, curr_ptr_g, 0);
+      return;
     // case where its just 0.
     default:
       tok->kind = INT_LIT;
-      return curr_ptr;
+      return;
     }
     // clang-format off
   case '1': case '2': case '3': case '4': case '5':
   case '6': case '7': case '8': case '9':
     // clang-format on
     tok->kind = INT_LIT;
-    return lex_int_literal(tok, curr_ptr);
+    curr_ptr_g = lex_int_literal(tok, curr_ptr_g);
+    return;
   }
-  return curr_ptr;
 }
